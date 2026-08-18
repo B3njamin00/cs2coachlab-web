@@ -1,0 +1,17 @@
+{
+  "player": "notPearL",
+  "kills": 14,
+  "deaths": 17,
+  "kd": 0.82,
+  "hsPercent": 21.4,
+  "averageKillDistance": 19.6,
+  "weapons": {
+    "glock": 2,
+    "deagle": 1,
+    "ak47": 3,
+    "inferno": 1,
+    "usp_silencer": 1,
+    "m4a1_silencer": 4,
+    "fiveseven": 2
+  }
+}
