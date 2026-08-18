@@ -113,7 +113,7 @@ export default function DemoAnalyzer() {
       formData.append("demo", selectedFile);
       if (playerName) formData.append("playerName", playerName);
 
-      const response = await fetch("http://localhost:3001/api/analyze", {
+      const response = await fetch("https://cs2coachlab-api.onrender.com/api/analyze", {
         method: "POST",
         body: formData,
       });
