@@ -90,6 +90,40 @@ export type FirestoreMatch = {
         recommendedExercises: string[];
       };
     };
+    impact?: {
+      version: string;
+      stats: {
+        roundsPlayed: number;
+        kills: number;
+        killsPerRound: number;
+        roundsWonWithKill: number;
+        threeK: number;
+        fourK: number;
+        aces: number;
+        retakeImpact: number;
+        openingChains: number;
+        highImpactRounds: number;
+        highImpactRate: number;
+        score: number;
+      };
+      rounds: Array<{
+        round: number;
+        startTick: number;
+        endTick: number;
+        kills: number;
+        headshots: number;
+        type: "multikill" | "retake" | "round_swing" | "ace";
+        roundWon: boolean;
+      }>;
+      feedback: {
+        grade: string;
+        mainIssue: string;
+        strength: string;
+        summary: string;
+        nextMatchFocus: string;
+        recommendedExercises: string[];
+      };
+    };
     clutch?: {
       version: string;
       stats: {

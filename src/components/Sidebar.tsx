@@ -2,8 +2,7 @@ import { NavLink } from "react-router-dom";
 import { useAuth } from "../context/AuthContext";
 
 export default function Sidebar() {
-  const { user, login, logout } =
-    useAuth();
+  const { user, login, logout } = useAuth();
 
   const navItems = [
     {
@@ -37,6 +36,11 @@ export default function Sidebar() {
       icon: "🗺️",
     },
     {
+      name: "Community Hub",
+      path: "/community",
+      icon: "🌍",
+    },
+    {
       name: "Settings",
       path: "/settings",
       icon: "⚙️",
@@ -54,6 +58,7 @@ export default function Sidebar() {
 
   return (
     <aside className="flex h-screen w-[260px] flex-col border-r border-[#182538] bg-[#08111f]">
+
       <div className="border-b border-[#182538] p-6">
         <div className="flex items-center gap-3">
           <div className="text-5xl text-orange-500">
@@ -101,6 +106,7 @@ export default function Sidebar() {
 
       <div className="m-4 rounded-2xl border border-[#1a2740] bg-[#0d1728] p-4">
         <div className="flex items-center gap-3">
+
           <div className="flex h-12 w-12 items-center justify-center rounded-full bg-[#1d2c44] font-bold text-white">
             {avatar}
           </div>
@@ -114,6 +120,7 @@ export default function Sidebar() {
               {email}
             </p>
           </div>
+
         </div>
 
         {!user ? (

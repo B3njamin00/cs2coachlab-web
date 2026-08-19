@@ -1,391 +1,93 @@
 import { useEffect, useMemo, useState } from "react";
 import { useAuth } from "../context/AuthContext";
-import {
-  getMatches,
-  subscribeToMatches,
-  type FirestoreMatch,
-} from "../services/matchService";
-import {
-  analyzeProgress,
-  defaultProgressProfile,
-  saveProgressProfile,
-  subscribeToProgressProfile,
-  type ProgressAnalysis,
-  type ProgressProfile,
-  type SkillProgress,
-} from "../services/progressService";
+import { subscribeToMatches, type FirestoreMatch } from "../services/matchService";
+import { analyzeProgress, defaultProgressProfile, saveProgressProfile, subscribeToProgressProfile, type ProgressAnalysis, type ProgressProfile, type SkillProgress } from "../services/progressService";
+import { getPremierTier } from "../data/eloTargets";
 
-const emptyAnalysis: ProgressAnalysis = {
-  matchCount: 0,
-  limitedData: true,
-  skills: [],
-  priorities: [],
-  tasks: [],
-  trends: [],
-  estimatedElo: null,
-  largestGap: null,
-};
-
-function formatNumber(value: number) {
-  return new Intl.NumberFormat("nb-NO").format(value);
-}
-
-function statusColor(status: SkillProgress["status"]) {
-  if (status === "ON TARGET") return "text-green-400 bg-green-500/10";
-  if (status === "IMPROVING") return "text-cyan-400 bg-cyan-500/10";
-  if (status === "HIGH PRIORITY") return "text-red-400 bg-red-500/10";
-  if (status === "NEEDS WORK") return "text-orange-400 bg-orange-500/10";
-  return "text-slate-400 bg-slate-500/10";
-}
+const emptyAnalysis: ProgressAnalysis = { matchCount: 0, analyzedWindow: 30, limitedData: true, skills: [], priorities: [], tasks: [], estimatedElo: null, largestGap: null };
+const format = (value: number) => new Intl.NumberFormat("nb-NO").format(value);
+const statusClass = (status: SkillProgress["status"]) => status === "ON TARGET" ? "text-green-400 bg-green-500/10" : status === "IMPROVING" ? "text-cyan-400 bg-cyan-500/10" : status === "HIGH PRIORITY" ? "text-red-400 bg-red-500/10" : status === "NEEDS WORK" ? "text-orange-400 bg-orange-500/10" : "text-slate-400 bg-slate-500/10";
 
 export default function Progress() {
   const { user, loading } = useAuth();
   const [profile, setProfile] = useState<ProgressProfile>(defaultProgressProfile);
-  const [draftProfile, setDraftProfile] = useState<ProgressProfile>(defaultProgressProfile);
+  const [draft, setDraft] = useState<ProgressProfile>(defaultProgressProfile);
   const [matches, setMatches] = useState<FirestoreMatch[]>([]);
-  const [isEditingGoal, setIsEditingGoal] = useState(false);
-  const [isSaving, setIsSaving] = useState(false);
-  const [errorMessage, setErrorMessage] = useState("");
-
-  useEffect(() => {
-    if (!user) {
-      setMatches([]);
-      setProfile(defaultProgressProfile);
-      setDraftProfile(defaultProgressProfile);
-      return;
-    }
-
-    const unsubscribeProfile = subscribeToProgressProfile(
-      user.uid,
-      (nextProfile) => {
-        setProfile(nextProfile);
-        setDraftProfile(nextProfile);
-      },
-      (error) => setErrorMessage(error.message)
-    );
-
-    const unsubscribeMatches = subscribeToMatches(
-      user.uid,
-      setMatches,
-      (error) => setErrorMessage(error.message)
-    );
-
-    return () => {
-      unsubscribeProfile();
-      unsubscribeMatches();
-    };
-  }, [user]);
+  const [selected, setSelected] = useState<SkillProgress | null>(null);
+  const [editing, setEditing] = useState(false);
+  const [saving, setSaving] = useState(false);
+  const [error, setError] = useState("");
 
   useEffect(() => {
     if (!user) return;
-    getMatches(user.uid).catch((error: unknown) => {
-      if (error instanceof Error) setErrorMessage(error.message);
-    });
+    const a = subscribeToProgressProfile(user.uid, (next) => { setProfile(next); setDraft(next); }, (e) => setError(e.message));
+    const b = subscribeToMatches(user.uid, setMatches, (e) => setError(e.message));
+    return () => { a(); b(); };
   }, [user]);
 
-  const analysis = useMemo(
-    () => user ? analyzeProgress(matches, profile) : emptyAnalysis,
-    [matches, profile, user]
-  );
-
-  const eloProgress = profile.targetElo > 0
-    ? Math.min(100, (profile.currentElo / profile.targetElo) * 100)
-    : 0;
-  const remainingElo = Math.max(0, profile.targetElo - profile.currentElo);
-
+  const analysis = useMemo(() => user ? analyzeProgress(matches, profile) : emptyAnalysis, [matches, profile, user]);
+  const rankedSkills = analysis.skills.filter((skill) => skill.key !== "clutch");
+  const clutchSkill = analysis.skills.find((skill) => skill.key === "clutch") || null;
+  const progress = profile.targetElo ? Math.min(100, profile.currentElo / profile.targetElo * 100) : 0;
   async function saveGoal() {
     if (!user) return;
-    setIsSaving(true);
-    setErrorMessage("");
-
-    try {
-      await saveProgressProfile(user.uid, draftProfile);
-      setIsEditingGoal(false);
-    } catch (error) {
-      setErrorMessage(error instanceof Error ? error.message : "Kunne ikke lagre ELO-målet.");
-    } finally {
-      setIsSaving(false);
-    }
+    setSaving(true);
+    try { await saveProgressProfile(user.uid, draft); setEditing(false); } catch (e) { setError(e instanceof Error ? e.message : "Lagring feilet"); } finally { setSaving(false); }
   }
+  if (loading) return <div className="text-slate-400">Laster Progress V2...</div>;
+  if (!user) return <div className="rounded-2xl border border-orange-500/30 bg-orange-500/10 p-8"><h1 className="text-4xl font-black">Logg inn for å se Progress V2</h1></div>;
 
-  if (loading) {
-    return <div className="text-slate-400">Laster progresjon...</div>;
-  }
+  return <div className="space-y-6">
+    <header className="flex flex-wrap items-start justify-between gap-4">
+      <div><p className="text-sm font-bold uppercase tracking-[.25em] text-orange-400">Coach V2</p><h1 className="mt-2 text-5xl font-black">PROGRESS</h1><p className="mt-2 text-slate-400">Skill ELO beregnet fra opptil de siste {analysis.analyzedWindow} kampene.</p></div>
+      <button onClick={() => setEditing(true)} className="rounded-xl border border-orange-500 px-5 py-3 font-bold text-orange-400">Endre ELO-mål</button>
+    </header>
+    {error && <div className="rounded-2xl border border-red-500/50 bg-red-950/50 p-5 text-red-200">{error}</div>}
+    {editing && <section className="rounded-2xl border border-orange-500/30 bg-[#0c1426] p-6"><h2 className="text-2xl font-black">ELO Settings</h2><div className="mt-5 grid gap-4 md:grid-cols-2"><EloInput label="Nåværende ELO" value={draft.currentElo} onChange={(value) => setDraft((p) => ({...p,currentElo:value}))}/><EloInput label="Mål-ELO" value={draft.targetElo} onChange={(value) => setDraft((p) => ({...p,targetElo:value}))}/></div><div className="mt-5 flex gap-3"><button onClick={saveGoal} className="rounded-xl bg-orange-500 px-5 py-3 font-black text-black">{saving ? "Lagrer..." : "Lagre"}</button><button onClick={() => {setDraft(profile);setEditing(false)}} className="rounded-xl border border-[#263754] px-5 py-3 text-slate-300">Avbryt</button></div></section>}
 
-  if (!user) {
-    return (
-      <div className="rounded-2xl border border-orange-500/30 bg-orange-500/10 p-8">
-        <h1 className="text-4xl font-black">Logg inn for å se progresjonen din</h1>
-        <p className="mt-3 text-slate-300">
-          Progress bruker kun kampene til den innloggede Firebase-brukeren.
-        </p>
+    <section className="rounded-3xl border border-orange-500/25 bg-gradient-to-br from-[#121d33] to-[#08111f] p-7">
+      <div className="flex flex-wrap items-start justify-between gap-6"><div><p className="text-sm font-bold uppercase tracking-[.2em] text-orange-400">Road to {format(profile.targetElo)} ELO</p><h2 className="mt-3 text-5xl font-black">{format(profile.currentElo)} <span className="text-2xl text-slate-500">/ {format(profile.targetElo)}</span></h2><p className="mt-3 text-slate-300">{format(Math.max(0,profile.targetElo-profile.currentElo))} ELO gjenstår.</p></div><div className="rounded-2xl border border-orange-500/20 bg-orange-500/10 px-6 py-4 text-center"><p className="text-xs uppercase text-orange-300">Premier Progress</p><p className="mt-1 text-4xl font-black text-orange-400">{progress.toFixed(1)}%</p></div></div>
+      <div className="mt-7 h-4 overflow-hidden rounded-full bg-slate-800"><div className="h-full rounded-full bg-orange-500" style={{width:`${progress}%`}}/></div>
+    </section>
+
+    {analysis.limitedData && <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/5 p-5 text-cyan-200">Foreløpig modell basert på {analysis.matchCount} matcher. Minst 5 kreves, og 30 gir best sammenligningsgrunnlag.</div>}
+
+    <section>
+      <p className="text-sm font-bold uppercase tracking-wider text-purple-400">Ranked Skill ELO</p>
+      <h2 className="mt-2 text-3xl font-black">Ferdighetene som bestemmer nivået ditt</h2>
+      <p className="mt-2 text-slate-400">Samlet Skill ELO beregnes kun fra Aim, Opening, Utility og Impact.</p>
+      <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-4">
+        {rankedSkills.map((skill) => (
+          <SkillCard key={skill.key} skill={skill} onClick={() => setSelected(skill)} />
+        ))}
       </div>
-    );
-  }
+    </section>
 
-  return (
-    <div className="space-y-6">
-      <div className="flex flex-wrap items-start justify-between gap-4">
-        <div>
-          <h1 className="text-5xl font-black tracking-tight">PROGRESS</h1>
-          <p className="mt-2 text-slate-400">
-            AI-roadmap basert på dine siste {Math.min(10, analysis.matchCount)} matcher
-          </p>
-        </div>
-        <button
-          type="button"
-          onClick={() => setIsEditingGoal(true)}
-          className="rounded-xl border border-orange-500 px-5 py-3 font-semibold text-orange-400 transition hover:bg-orange-500 hover:text-black"
-        >
-          Endre ELO-mål
-        </button>
-      </div>
-
-      {errorMessage && (
-        <div className="rounded-2xl border border-red-500/50 bg-red-950/50 p-5 text-red-200">
-          {errorMessage}
-        </div>
-      )}
-
-      {isEditingGoal && (
-        <div className="rounded-2xl border border-orange-500/30 bg-[#0c1426] p-6">
-          <h2 className="text-2xl font-black">Oppdater ELO-mål</h2>
-          <div className="mt-5 grid gap-4 md:grid-cols-2">
-            <label className="space-y-2">
-              <span className="text-sm uppercase text-slate-400">Nåværende ELO</span>
-              <input
-                type="number"
-                min="0"
-                step="100"
-                value={draftProfile.currentElo}
-                onChange={(event) => setDraftProfile((current) => ({
-                  ...current,
-                  currentElo: Number(event.target.value),
-                }))}
-                className="w-full rounded-xl border border-[#263754] bg-[#08111f] p-3 text-white outline-none focus:border-orange-500"
-              />
-            </label>
-            <label className="space-y-2">
-              <span className="text-sm uppercase text-slate-400">Ønsket ELO</span>
-              <input
-                type="number"
-                min="0"
-                step="100"
-                value={draftProfile.targetElo}
-                onChange={(event) => setDraftProfile((current) => ({
-                  ...current,
-                  targetElo: Number(event.target.value),
-                }))}
-                className="w-full rounded-xl border border-[#263754] bg-[#08111f] p-3 text-white outline-none focus:border-orange-500"
-              />
-            </label>
-          </div>
-          <div className="mt-5 flex gap-3">
-            <button
-              type="button"
-              onClick={saveGoal}
-              disabled={isSaving}
-              className="rounded-xl bg-orange-500 px-5 py-3 font-bold text-black disabled:opacity-50"
-            >
-              {isSaving ? "Lagrer..." : "Lagre mål"}
-            </button>
-            <button
-              type="button"
-              onClick={() => {
-                setDraftProfile(profile);
-                setIsEditingGoal(false);
-              }}
-              className="rounded-xl border border-[#263754] px-5 py-3 text-slate-300"
-            >
-              Avbryt
-            </button>
-          </div>
-        </div>
-      )}
-
-      <section className="overflow-hidden rounded-3xl border border-orange-500/25 bg-gradient-to-br from-[#121d33] via-[#0c1426] to-[#08111f] p-7">
-        <div className="flex flex-wrap items-start justify-between gap-6">
+    {clutchSkill && (
+      <section className="rounded-2xl border border-cyan-500/20 bg-[#0c1426] p-6">
+        <div className="grid items-center gap-5 lg:grid-cols-[1fr_320px]">
           <div>
-            <p className="text-sm font-bold uppercase tracking-[0.2em] text-orange-400">
-              Road to {formatNumber(profile.targetElo)} ELO
-            </p>
-            <h2 className="mt-3 text-5xl font-black">
-              {formatNumber(profile.currentElo)}
-              <span className="ml-3 text-2xl text-slate-500">/ {formatNumber(profile.targetElo)}</span>
-            </h2>
-            <p className="mt-3 text-slate-300">
-              {remainingElo > 0
-                ? `${formatNumber(remainingElo)} ELO gjenstår til målet.`
-                : "ELO-målet er nådd. Sett et nytt mål når du er klar."}
+            <p className="text-sm font-bold uppercase tracking-wider text-cyan-400">Bonus Metric</p>
+            <h2 className="mt-2 text-3xl font-black">Clutch Analysis</h2>
+            <p className="mt-3 max-w-2xl text-slate-400">
+              Clutch måles og vises separat fordi 1vX-situasjoner forekommer ujevnt. Clutch påvirker ikke samlet Skill ELO, Roadmap eller prioriterte AI Tasks.
             </p>
           </div>
-          <div className="rounded-2xl border border-orange-500/20 bg-orange-500/10 px-6 py-4 text-center">
-            <p className="text-sm uppercase text-orange-300">ELO Progress</p>
-            <p className="mt-1 text-4xl font-black text-orange-400">{eloProgress.toFixed(1)}%</p>
-          </div>
-        </div>
-        <div className="mt-7 h-4 overflow-hidden rounded-full bg-slate-800">
-          <div
-            className="h-full rounded-full bg-gradient-to-r from-orange-600 to-orange-400 transition-all"
-            style={{ width: `${eloProgress}%` }}
-          />
+          <SkillCard skill={clutchSkill} onClick={() => setSelected(clutchSkill)} />
         </div>
       </section>
+    )}
 
-      {analysis.limitedData && (
-        <div className="rounded-2xl border border-cyan-500/25 bg-cyan-500/5 p-5 text-cyan-200">
-          Begrenset datagrunnlag. Analysen er basert på {analysis.matchCount} matcher. Minst 5 matcher kreves før estimert prestasjons-ELO vises.
-        </div>
-      )}
-
-      <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
-        <section className="rounded-2xl border border-[#182538] bg-[#0c1426] p-6">
-          <p className="text-sm font-bold uppercase tracking-wider text-orange-400">AI Coach Roadmap</p>
-          <h2 className="mt-2 text-3xl font-black">
-            Veien til {formatNumber(profile.targetElo)} ELO
-          </h2>
-          <div className="mt-6 space-y-4">
-            {analysis.priorities.length === 0 ? (
-              <p className="text-slate-400">Analyser flere matcher for å bygge en prioritert roadmap.</p>
-            ) : (
-              analysis.priorities.slice(0, 3).map((skill, index) => (
-                <div key={skill.key} className="rounded-xl bg-[#08111f] p-5">
-                  <div className="flex items-start justify-between gap-4">
-                    <div className="flex gap-4">
-                      <span className="text-3xl font-black text-orange-400">{index + 1}</span>
-                      <div>
-                        <h3 className="text-xl font-bold">{skill.label}</h3>
-                        <p className="mt-2 text-sm leading-6 text-slate-300">{skill.explanation}</p>
-                      </div>
-                    </div>
-                    <span className={`rounded-lg px-3 py-2 text-xs font-bold ${statusColor(skill.status)}`}>
-                      {skill.status}
-                    </span>
-                  </div>
-                  <div className="mt-4 flex justify-between text-sm text-slate-400">
-                    <span>Score {skill.score}</span>
-                    <span>Mål {skill.target}</span>
-                  </div>
-                  <div className="mt-2 h-2 overflow-hidden rounded-full bg-slate-800">
-                    <div
-                      className="h-full rounded-full bg-orange-500"
-                      style={{ width: `${Math.min(100, (skill.score / Math.max(1, skill.target)) * 100)}%` }}
-                    />
-                  </div>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-[#182538] bg-[#0c1426] p-6">
-          <p className="text-sm font-bold uppercase tracking-wider text-cyan-400">AI Prediction</p>
-          <h2 className="mt-2 text-3xl font-black">Estimert prestasjonsnivå</h2>
-          {analysis.estimatedElo === null ? (
-            <div className="mt-6 rounded-xl bg-[#08111f] p-5 text-slate-300">
-              Ikke nok data for et pålitelig estimat. Analyser minst 5 matcher.
-            </div>
-          ) : (
-            <>
-              <p className="mt-6 text-5xl font-black text-cyan-400">
-                {formatNumber(analysis.estimatedElo)} ELO
-              </p>
-              <p className="mt-3 text-slate-400">
-                Estimat basert på tilgjengelige kampdata. Dette er ikke faktisk eller garantert Premier-rating.
-              </p>
-            </>
-          )}
-          <div className="mt-6 rounded-xl bg-[#08111f] p-5">
-            <p className="text-sm uppercase text-slate-500">Største prestasjonsgap</p>
-            <p className="mt-2 text-2xl font-bold text-orange-400">
-              {analysis.largestGap?.label || "Ikke nok data"}
-            </p>
-            {analysis.largestGap && (
-              <p className="mt-2 text-slate-300">
-                {analysis.largestGap.gap} poeng under målet for {formatNumber(profile.targetElo)} ELO.
-              </p>
-            )}
-          </div>
-        </section>
-      </div>
-
-      <section className="rounded-2xl border border-[#182538] bg-[#0c1426] p-6">
-        <p className="text-sm font-bold uppercase tracking-wider text-purple-400">Skill Scorecard</p>
-        <div className="mt-5 grid gap-4 md:grid-cols-2 xl:grid-cols-5">
-          {analysis.skills.map((skill) => (
-            <div key={skill.key} className="rounded-xl bg-[#08111f] p-5">
-              <div className="flex items-start justify-between gap-3">
-                <h3 className="font-bold">{skill.label}</h3>
-                <span className={`rounded-md px-2 py-1 text-[10px] font-bold ${statusColor(skill.status)}`}>
-                  {skill.status}
-                </span>
-              </div>
-              <p className="mt-4 text-4xl font-black">{skill.score}</p>
-              <p className="mt-1 text-sm text-slate-500">Target {skill.target}</p>
-              <div className="mt-4 h-2 overflow-hidden rounded-full bg-slate-800">
-                <div
-                  className={`h-full rounded-full ${skill.score >= skill.target ? "bg-green-500" : "bg-orange-500"}`}
-                  style={{ width: `${Math.min(100, skill.score)}%` }}
-                />
-              </div>
-            </div>
-          ))}
-        </div>
-      </section>
-
-      <div className="grid gap-6 xl:grid-cols-[1fr_1.2fr]">
-        <section className="rounded-2xl border border-[#182538] bg-[#0c1426] p-6">
-          <p className="text-sm font-bold uppercase tracking-wider text-green-400">Current AI Tasks</p>
-          <div className="mt-5 space-y-4">
-            {analysis.tasks.length === 0 ? (
-              <p className="text-slate-400">Ingen oppgaver generert ennå.</p>
-            ) : (
-              analysis.tasks.map((task) => (
-                <div key={task.id} className="rounded-xl bg-[#08111f] p-5">
-                  <div className="flex items-center justify-between gap-4">
-                    <h3 className="text-lg font-bold">{task.title}</h3>
-                    <span className={task.priority === "HIGH" ? "text-red-400" : task.priority === "MEDIUM" ? "text-orange-400" : "text-cyan-400"}>
-                      {task.priority}
-                    </span>
-                  </div>
-                  <p className="mt-3 text-sm leading-6 text-slate-300">{task.description}</p>
-                  <p className="mt-3 text-sm font-semibold text-green-400">{task.action}</p>
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-
-        <section className="rounded-2xl border border-[#182538] bg-[#0c1426] p-6">
-          <p className="text-sm font-bold uppercase tracking-wider text-blue-400">Last 10 Matches</p>
-          <h2 className="mt-2 text-2xl font-black">Trendoversikt</h2>
-          <div className="mt-6 space-y-4">
-            {analysis.trends.length === 0 ? (
-              <p className="text-slate-400">Ingen matcher tilgjengelig.</p>
-            ) : (
-              analysis.trends.map((trend, index) => (
-                <div key={`${trend.label}-${index}`} className="grid grid-cols-[34px_repeat(5,1fr)] items-center gap-3 rounded-xl bg-[#08111f] p-3 text-center text-sm">
-                  <span className="text-slate-500">{index + 1}</span>
-                  <TrendValue label="K/D" value={trend.kd.toFixed(2)} />
-                  <TrendValue label="HS" value={`${trend.hs}%`} />
-                  <TrendValue label="Opening" value={trend.opening} />
-                  <TrendValue label="Utility" value={trend.utility} />
-                  <TrendValue label="Clutch" value={trend.clutch} />
-                </div>
-              ))
-            )}
-          </div>
-        </section>
-      </div>
+    <div className="grid gap-6 xl:grid-cols-[1.2fr_1fr]">
+      <section className="rounded-2xl border border-[#182538] bg-[#0c1426] p-6"><p className="text-sm font-bold uppercase text-orange-400">AI Coach Roadmap</p><h2 className="mt-2 text-3xl font-black">Største ELO-gap</h2><div className="mt-6 space-y-4">{analysis.priorities.slice(0,3).map((skill,index)=><button key={skill.key} onClick={()=>setSelected(skill)} className="w-full rounded-xl bg-[#08111f] p-5 text-left"><div className="flex justify-between gap-4"><div><p className="text-xl font-black"><span className="mr-3 text-orange-400">{index+1}</span>{skill.label}</p><p className="mt-2 text-sm text-slate-300">{skill.explanation}</p></div><div className="text-right"><p className="text-2xl font-black text-red-400">-{format(skill.eloGap)}</p><p className="text-xs text-slate-500">ELO gap</p></div></div></button>)}</div></section>
+      <section className="rounded-2xl border border-[#182538] bg-[#0c1426] p-6"><p className="text-sm font-bold uppercase text-cyan-400">Performance Estimate</p><h2 className="mt-2 text-3xl font-black">Samlet Skill ELO</h2><p className="mt-6 text-5xl font-black text-cyan-400">{analysis.estimatedElo === null ? "-" : format(analysis.estimatedElo)}</p><p className="mt-3 text-slate-400">Produktestimat fra Aim, Opening, Utility og Impact. Clutch vises separat og påvirker ikke estimatet. Dette er ikke faktisk Premier-rating.</p>{analysis.largestGap && <div className="mt-6 rounded-xl bg-[#08111f] p-5"><p className="text-xs uppercase text-slate-500">Største flaskehals</p><p className="mt-2 text-2xl font-black text-orange-400">{analysis.largestGap.label}</p></div>}</section>
     </div>
-  );
+
+    <section className="rounded-2xl border border-[#182538] bg-[#0c1426] p-6"><p className="text-sm font-bold uppercase text-green-400">Current AI Tasks</p><div className="mt-5 grid gap-4 lg:grid-cols-3">{analysis.tasks.map((task)=><div key={task.id} className="rounded-xl bg-[#08111f] p-5"><div className="flex justify-between"><h3 className="font-black">{task.title}</h3><span className="text-orange-400">{task.priority}</span></div><p className="mt-3 text-sm text-slate-300">{task.description}</p><p className="mt-3 text-sm font-semibold text-green-400">{task.action}</p></div>)}</div></section>
+    {selected && <SkillDetail skill={selected} onClose={()=>setSelected(null)}/>} 
+  </div>;
 }
 
-function TrendValue({ label, value }: { label: string; value: string | number }) {
-  return (
-    <div>
-      <p className="text-[10px] uppercase text-slate-600">{label}</p>
-      <p className="mt-1 font-bold text-slate-200">{value}</p>
-    </div>
-  );
-}
+function EloInput({label,value,onChange}:{label:string;value:number;onChange:(value:number)=>void}) { return <label className="space-y-2"><span className="text-xs uppercase text-slate-500">{label}</span><input type="number" step="100" value={value} onChange={(e)=>onChange(Number(e.target.value))} className="w-full rounded-xl border border-[#263754] bg-[#08111f] p-3 text-white"/></label> }
+function SkillCard({skill,onClick}:{skill:SkillProgress;onClick:()=>void}) { const tier=getPremierTier(skill.skillElo); return <button onClick={onClick} className={`group rounded-2xl border ${tier.borderClass} ${tier.backgroundClass} p-5 text-left transition hover:-translate-y-1`}><div className="flex justify-between"><h3 className="text-lg font-black">{skill.label}</h3><span className={`rounded-lg px-2 py-1 text-[10px] font-bold ${statusClass(skill.status)}`}>{skill.status}</span></div><p className={`mt-5 text-4xl font-black ${tier.textClass}`}>{format(skill.skillElo)}</p><p className="mt-1 text-xs uppercase text-slate-500">Plays like · {tier.name}</p><div className="mt-5 flex justify-between text-sm"><span className="text-slate-500">Råscore {skill.score}</span><span className="text-slate-400">Detaljer ›</span></div></button> }
+function SkillDetail({skill,onClose}:{skill:SkillProgress;onClose:()=>void}) { const tier=getPremierTier(skill.skillElo); return <div className="fixed inset-0 z-50 flex justify-end bg-black/75" onMouseDown={(e)=>{if(e.currentTarget===e.target)onClose()}}><aside className="h-full w-full max-w-3xl overflow-y-auto border-l border-[#263754] bg-[#08111f]"><header className="sticky top-0 flex justify-between border-b border-[#182538] bg-[#08111f]/95 p-6"><div><p className="text-sm font-bold uppercase text-orange-400">{skill.label} Analysis</p><h2 className={`mt-2 text-5xl font-black ${tier.textClass}`}>{format(skill.skillElo)} ELO</h2></div><button onClick={onClose} className="h-11 w-11 rounded-full border border-[#263754] text-2xl">×</button></header><div className="space-y-6 p-6"><section className={`rounded-2xl border ${tier.borderClass} ${tier.backgroundClass} p-6`}><div className="grid gap-4 sm:grid-cols-3"><div><p className="text-xs uppercase text-slate-500">Skill ELO</p><p className={`mt-2 text-3xl font-black ${tier.textClass}`}>{format(skill.skillElo)}</p></div><div><p className="text-xs uppercase text-slate-500">Target</p><p className="mt-2 text-3xl font-black">{format(skill.targetElo)}</p></div><div><p className="text-xs uppercase text-slate-500">Gap</p><p className="mt-2 text-3xl font-black text-red-400">{format(skill.eloGap)}</p></div></div></section><section><p className="text-sm font-bold uppercase text-cyan-400">Stats fra alle tilgjengelige demoer</p><div className="mt-4 grid gap-4 sm:grid-cols-2">{skill.detailStats.map((stat)=><div key={stat.label} className="rounded-xl bg-[#0c1426] p-5"><p className="text-xs uppercase text-slate-500">{stat.label}</p><p className="mt-2 text-3xl font-black">{stat.value}</p></div>)}</div></section><section className="rounded-2xl border border-orange-500/25 bg-orange-500/5 p-6"><p className="text-xs font-bold uppercase text-orange-400">AI Interpretation</p><p className="mt-3 leading-7 text-slate-300">{skill.explanation}</p><p className="mt-4 text-sm text-slate-500">Beregningen bruker {skill.dataPoints} gyldige datapunkter fra opptil 30 matcher.</p></section></div></aside></div> }

@@ -1,6 +1,7 @@
 import { Routes, Route } from "react-router-dom";
 import Sidebar from "./components/Sidebar";
 import Dashboard from "./pages/Dashboard";
+import CommunityHub from "./pages/CommunityHub";
 import DemoAnalyzer from "./pages/DemoAnalyzer";
 import Exercises from "./pages/exercises";
 import MapsUtility from "./pages/MapsUtility";
@@ -19,6 +20,7 @@ function App() {
           <Routes>
             <Route path="/" element={<Dashboard />} />
             <Route path="/demo-analyzer" element={<DemoAnalyzer />} />
+            <Route path="/community" element={<CommunityHub />} />
             <Route path="/matches" element={<Matches />} />
             <Route path="/progress" element={<Progress />} />
             <Route path="/clip-review" element={<Exercises />} />

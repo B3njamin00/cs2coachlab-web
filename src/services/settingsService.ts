@@ -25,6 +25,8 @@ export type UserSettings = {
   configContent: string;
   autoexecFileName: string;
   autoexecContent: string;
+  publicConfig: boolean;
+  zoomSensitivity: number | null;
 };
 
 export const defaultUserSettings: UserSettings = {
@@ -37,6 +39,8 @@ export const defaultUserSettings: UserSettings = {
   configContent: "",
   autoexecFileName: "",
   autoexecContent: "",
+  publicConfig: false,
+  zoomSensitivity: null,
 };
 
 function settingsReference(uid: string) {
@@ -67,6 +71,8 @@ export function subscribeToUserSettings(
         configContent: String(data.configContent || ""),
         autoexecFileName: String(data.autoexecFileName || ""),
         autoexecContent: String(data.autoexecContent || ""),
+        publicConfig: Boolean(data.publicConfig),
+        zoomSensitivity: data.zoomSensitivity == null ? null : Number(data.zoomSensitivity),
       });
     },
     (error) => onError?.(error)

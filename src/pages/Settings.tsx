@@ -5,7 +5,10 @@ import {
   type FirestoreMatch,
 } from "../services/matchService";
 import { analyzeSuggestedRole } from "../services/roleAdvisor";
+import { parseCfg } from "../services/cfgParser";
+import { publishCommunityConfig, removeCommunityConfig } from "../services/communityService";
 import {
+  analyzeProgress,
   defaultProgressProfile,
   saveProgressProfile,
   subscribeToProgressProfile,
@@ -102,6 +105,10 @@ export default function Settings() {
     () => analyzeSuggestedRole(matches),
     [matches]
   );
+  const progressAnalysis = useMemo(
+    () => analyzeProgress(matches, draftProgress),
+    [matches, draftProgress]
+  );
 
   async function readConfigFile(file: File, type: "config" | "autoexec") {
     setErrorMessage("");
@@ -114,11 +121,15 @@ export default function Settings() {
       return;
     }
 
-    setDraftSettings((current) =>
-      type === "config"
-        ? { ...current, configFileName: file.name, configContent: content }
-        : { ...current, autoexecFileName: file.name, autoexecContent: content }
-    );
+    const parsed = parseCfg(content);
+    setDraftSettings((current) => ({
+      ...current,
+      ...(type === "config"
+        ? { configFileName: file.name, configContent: content }
+        : { autoexecFileName: file.name, autoexecContent: content }),
+      sensitivity: parsed.sensitivity ?? current.sensitivity,
+      zoomSensitivity: parsed.zoomSensitivity ?? current.zoomSensitivity,
+    }));
   }
 
   async function saveAll() {
@@ -133,7 +144,26 @@ export default function Settings() {
         saveProgressProfile(user.uid, draftProgress),
         saveUserSettings(user.uid, draftSettings),
       ]);
-      setSavedMessage("Innstillingene ble lagret i Firestore.");
+      const sharedContent = draftSettings.autoexecContent || draftSettings.configContent;
+      const sharedFileName = draftSettings.autoexecFileName || draftSettings.configFileName;
+      if (draftSettings.publicConfig && sharedContent) {
+        await publishCommunityConfig({
+          ownerUid: user.uid,
+          ownerName: user.displayName || user.email || "CS2 Player",
+          role: draftSettings.preferredRole,
+          skillElo: progressAnalysis.estimatedElo || 0,
+          dpi: draftSettings.dpi,
+          sensitivity: draftSettings.sensitivity,
+          edpi: Math.round(draftSettings.dpi * draftSettings.sensitivity),
+          zoomSensitivity: draftSettings.zoomSensitivity,
+          crosshairShareCode: draftSettings.crosshairShareCode,
+          fileName: sharedFileName,
+          content: sharedContent,
+        });
+      } else {
+        await removeCommunityConfig(user.uid).catch(() => undefined);
+      }
+      setSavedMessage("Innstillingene og community-valget ble lagret.");
     } catch (error) {
       setErrorMessage(
         error instanceof Error ? error.message : "Kunne ikke lagre innstillingene."
@@ -432,10 +462,24 @@ export default function Settings() {
         />
       </section>
 
+      <section className="rounded-2xl border border-cyan-500/25 bg-cyan-500/5 p-6">
+        <SectionHeading eyebrow="Community Hub" title="Del CFG offentlig" />
+        <p className="mt-3 text-slate-400">Når dette er aktivert og Settings lagres, kan innloggede besøkende laste ned valgt autoexec.cfg eller config.cfg fra Community Hub.</p>
+        <label className="mt-5 flex cursor-pointer items-center justify-between rounded-xl bg-[#08111f] p-5">
+          <div><p className="font-black">Public Config</p><p className="mt-1 text-sm text-slate-500">Skill ELO, rolle, DPI, sens og CFG-innhold blir offentlig.</p></div>
+          <input type="checkbox" checked={draftSettings.publicConfig} onChange={(event) => setDraftSettings((current) => ({ ...current, publicConfig: event.target.checked }))} className="h-6 w-6 accent-orange-500" />
+        </label>
+        <div className="mt-4 grid gap-3 sm:grid-cols-3">
+          <div className="rounded-xl bg-[#08111f] p-4"><p className="text-xs uppercase text-slate-600">Skill ELO</p><p className="mt-1 text-2xl font-black text-cyan-400">{progressAnalysis.estimatedElo?.toLocaleString("nb-NO") || "-"}</p></div>
+          <div className="rounded-xl bg-[#08111f] p-4"><p className="text-xs uppercase text-slate-600">Shared File</p><p className="mt-1 font-black">{draftSettings.autoexecFileName || draftSettings.configFileName || "Ingen"}</p></div>
+          <div className="rounded-xl bg-[#08111f] p-4"><p className="text-xs uppercase text-slate-600">Visibility</p><p className="mt-1 font-black">{draftSettings.publicConfig ? "Public" : "Private"}</p></div>
+        </div>
+      </section>
+
       <section className="rounded-2xl border border-[#182538] bg-[#0c1426] p-6">
         <SectionHeading eyebrow="Configuration" title="CFG Files" />
         <p className="mt-3 max-w-3xl text-slate-400">
-          Filen leses i nettleseren og tekstinnholdet lagres i Firestore-profilen. Settings V1 kjører eller validerer ikke kommandoene.
+          Filen leses i nettleseren og tekstinnholdet lagres i Firestore-profilen. Settings V2 parser sensitivity og zoom sensitivity automatisk, men kjører ikke kommandoene.
         </p>
 
         <div className="mt-6 grid gap-5 lg:grid-cols-2">
