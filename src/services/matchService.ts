@@ -90,6 +90,37 @@ export type FirestoreMatch = {
         recommendedExercises: string[];
       };
     };
+    clutch?: {
+      version: string;
+      stats: {
+        opportunities: number;
+        won: number;
+        lost: number;
+        winRate: number;
+        largestClutchWon: string | null;
+        byType: Record<string, { opportunities: number; won: number; lost: number; winRate: number }>;
+      };
+      situations: Array<{
+        round: number;
+        type: string;
+        enemiesAtStart: number;
+        startTick: number;
+        endTick: number;
+        opponentsAtStart: string[];
+        result: "won" | "lost";
+        killsAfterStart: number;
+        headshots: number;
+        kills: Array<{ tick: number; opponent: string; weapon: string; headshot: boolean }>;
+      }>;
+      feedback: {
+        grade: string;
+        mainIssue: string;
+        strength: string;
+        summary: string;
+        nextMatchFocus: string;
+        recommendedExercises: string[];
+      };
+    };
     feedback: {
       grade: string;
       mainIssue: string;

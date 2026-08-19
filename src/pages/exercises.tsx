@@ -29,6 +29,9 @@ export default function Exercises() {
   const mapExercises = exercises.filter(
     (exercise) => exercise.category === "map-utility"
   );
+  const clutchExercises = exercises.filter(
+    (exercise) => exercise.category === "clutch"
+  );
 
   return (
     <div className="space-y-6">
@@ -74,6 +77,12 @@ export default function Exercises() {
         </div>
       )}
 
+      {clutchExercises.length > 0 && (
+        <div className="rounded-2xl border border-orange-500/25 bg-orange-500/5 p-6">
+          <p className="text-sm font-bold uppercase tracking-wider text-orange-400">Clutch Focus</p>
+          <p className="mt-3 text-slate-300">{clutchExercises.map((exercise) => exercise.name).join(", ")}</p>
+        </div>
+      )}
       <div className="grid gap-6 lg:grid-cols-3">
         {exercises.map((exercise) => (
           <div

@@ -475,6 +475,37 @@ export default function Dashboard() {
         </div>
       </div>
 
+      {coach?.clutch && (
+        <div className="rounded-2xl border border-cyan-500/25 bg-[#0c1426] p-6">
+          <div className="flex items-start justify-between gap-5">
+            <div>
+              <p className="text-sm font-bold uppercase tracking-wider text-cyan-400">Clutch Coach</p>
+              <h2 className="mt-2 text-3xl font-black">{coach.clutch.feedback.mainIssue}</h2>
+              <p className="mt-3 text-slate-300">{coach.clutch.feedback.summary}</p>
+            </div>
+            <div className="rounded-xl bg-cyan-500/10 px-5 py-3 text-center">
+              <p className="text-xs uppercase text-cyan-300">Clutch Grade</p>
+              <p className="text-3xl font-black text-cyan-400">{coach.clutch.feedback.grade}</p>
+            </div>
+          </div>
+          <div className="mt-6 grid gap-3 sm:grid-cols-2 lg:grid-cols-5">
+            <MiniStat label="Muligheter" value={coach.clutch.stats.opportunities} />
+            <MiniStat label="Vunnet" value={coach.clutch.stats.won} color="text-green-400" />
+            <MiniStat label="Tapt" value={coach.clutch.stats.lost} color="text-red-400" />
+            <MiniStat label="Win rate" value={coach.clutch.stats.winRate} color="text-cyan-400" />
+            <div className="rounded-xl bg-slate-900 p-3"><p className="text-slate-400">Største seier</p><p className="text-2xl font-bold text-orange-400">{coach.clutch.stats.largestClutchWon || "-"}</p></div>
+          </div>
+          <div className="mt-5 grid gap-3 lg:grid-cols-2">
+            {coach.clutch.situations.slice(0, 6).map((situation) => (
+              <div key={`${situation.round}-${situation.startTick}`} className="flex items-center justify-between rounded-xl bg-[#08111f] p-4">
+                <div><p className="font-bold">Runde {situation.round} · {situation.type}</p><p className="mt-1 text-sm text-slate-400">{situation.killsAfterStart} kills · {situation.headshots} headshots</p></div>
+                <span className={situation.result === "won" ? "font-black text-green-400" : "font-black text-red-400"}>{situation.result === "won" ? "VUNNET" : "TAPT"}</span>
+              </div>
+            ))}
+          </div>
+        </div>
+      )}
+
       <div className="grid gap-6 lg:grid-cols-3">
         <div className="rounded-2xl border border-[#182538] bg-[#0c1426] p-6">
           <h2 className="text-3xl font-bold">Weapon Performance</h2>

@@ -3,7 +3,7 @@ export type TrainingExercise = {
   name: string;
   duration: number;
   completed: boolean;
-  category: "aim" | "duel" | "utility" | "map-utility";
+  category: "aim" | "duel" | "utility" | "map-utility" | "clutch";
   reason: string;
   map?: string;
 };
@@ -11,6 +11,7 @@ export type TrainingExercise = {
 type RecommendationContext = {
   mainIssue?: string;
   utilityIssue?: string;
+  clutchIssue?: string;
   map?: string;
 };
 
@@ -54,6 +55,27 @@ const catalog: Record<string, Omit<TrainingExercise, "completed">> = {
     duration: 15,
     category: "utility",
     reason: "Forbedre flash-timing og redusere flashes uten registrert effekt.",
+  },
+  "clutch-1v1-decisions": {
+    id: "clutch-1v1-decisions",
+    name: "1v1 Decision Training",
+    duration: 15,
+    category: "clutch",
+    reason: "Tren lydbruk, tid, objektiv og valg av siste 1v1-duell.",
+  },
+  "clutch-isolation": {
+    id: "clutch-isolation",
+    name: "Clutch Isolation",
+    duration: 20,
+    category: "clutch",
+    reason: "Tren på å gjøre 1v2 og 1v3 om til separate 1v1-dueller.",
+  },
+  "post-kill-repositioning": {
+    id: "post-kill-repositioning",
+    name: "Post-Kill Repositioning",
+    duration: 15,
+    category: "clutch",
+    reason: "Tren reposisjonering etter hver clutch-kill for å unngå trade og dobbel eksponering.",
   },
   "utility-timing": {
     id: "utility-timing",
@@ -128,7 +150,9 @@ export function applyAiRecommendations(
       reason:
         definition.category === "map-utility" && context.utilityIssue
           ? `${definition.reason} Funn: ${context.utilityIssue}.`
-          : definition.reason,
+          : definition.category === "clutch" && context.clutchIssue
+            ? `${definition.reason} Funn: ${context.clutchIssue}.`
+            : definition.reason,
       completed: old?.completed ?? false,
     };
   });
