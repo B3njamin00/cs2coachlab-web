@@ -58,7 +58,7 @@ export default function DemoAnalyzer() {
         formData.append("playerName", playerName);
       }
 
-      const response = await fetch("http://10.115.58.58:3001/api/analyze", {
+      const response = await fetch("http://localhost:3001/api/analyze", {
         method: "POST",
         body: formData,
       });
@@ -111,7 +111,6 @@ export default function DemoAnalyzer() {
         applyAiRecommendations(data.aiCoach.feedback.recommendedExercises, {
           mainIssue: data.aiCoach.feedback.mainIssue,
           utilityIssue: data.aiCoach.utility?.feedback.mainIssue,
-          clutchIssue: data.aiCoach.clutch?.feedback.mainIssue,
           map: data.aiCoach.utility?.map || data.match.map,
         });
 
@@ -367,32 +366,6 @@ export default function DemoAnalyzer() {
             )}
           </div>
 
-          {aiCoach.clutch && (
-            <div className="mt-6 rounded-xl border border-cyan-500/20 bg-slate-900 p-5">
-              <div className="flex items-start justify-between gap-4">
-                <div>
-                  <p className="text-sm uppercase text-slate-400">Clutch Coach</p>
-                  <p className="mt-2 text-xl font-bold text-cyan-400">{aiCoach.clutch.feedback.mainIssue}</p>
-                </div>
-                <p className="text-3xl font-black text-cyan-400">{aiCoach.clutch.feedback.grade}</p>
-              </div>
-              <div className="mt-5 grid grid-cols-2 gap-3 md:grid-cols-4">
-                <UtilityStat label="Muligheter" value={aiCoach.clutch.stats.opportunities} />
-                <UtilityStat label="Vunnet" value={aiCoach.clutch.stats.won} />
-                <UtilityStat label="Tapt" value={aiCoach.clutch.stats.lost} />
-                <div className="rounded-lg bg-[#0c1426] p-3"><p className="text-slate-500">Største seier</p><p className="mt-1 text-xl font-bold">{aiCoach.clutch.stats.largestClutchWon || "-"}</p></div>
-              </div>
-              <p className="mt-4 text-slate-300">{aiCoach.clutch.feedback.summary}</p>
-              <div className="mt-4 space-y-2">
-                {aiCoach.clutch.situations.slice(0, 5).map((situation) => (
-                  <div key={`${situation.round}-${situation.startTick}`} className="flex justify-between rounded-lg bg-[#0c1426] p-3">
-                    <span>Runde {situation.round} · {situation.type} · {situation.killsAfterStart} kills</span>
-                    <span className={situation.result === "won" ? "font-bold text-green-400" : "font-bold text-red-400"}>{situation.result === "won" ? "VUNNET" : "TAPT"}</span>
-                  </div>
-                ))}
-              </div>
-            </div>
-          )}
           <div className="mt-6 rounded-xl bg-slate-900 p-5">
             <p className="text-sm uppercase text-slate-400">
               Generert treningsplan
