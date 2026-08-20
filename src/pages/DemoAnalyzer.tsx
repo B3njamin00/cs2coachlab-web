@@ -58,7 +58,7 @@ export default function DemoAnalyzer() {
         formData.append("playerName", playerName);
       }
 
-      const response = await fetch("http://localhost:3001/api/analyze", {
+      const response = await fetch("http://10.115.58.58:3001/api/analyze", {
         method: "POST",
         body: formData,
       });
