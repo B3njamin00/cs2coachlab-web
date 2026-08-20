@@ -476,9 +476,21 @@ function MatchRow({ match, onOpen }: { match: FirestoreMatch; onOpen: () => void
         <div>
           <div className="flex flex-wrap items-center gap-3">
             <h2 className="text-2xl font-black">{mapName(match.map || match.mapNameRaw)}</h2>
-            <span className="text-lg font-bold text-slate-400">
-              {match.score?.player ?? 0} - {match.score?.opponent ?? 0}
-            </span>
+            <span
+  className={
+    match.result === "win"
+      ? "rounded-lg bg-green-500/10 px-3 py-1 text-sm font-bold text-green-400"
+      : match.result === "draw"
+        ? "rounded-lg bg-yellow-500/10 px-3 py-1 text-sm font-bold text-yellow-400"
+        : "rounded-lg bg-red-500/10 px-3 py-1 text-sm font-bold text-red-400"
+  }
+>
+  {match.result === "win"
+    ? "WIN"
+    : match.result === "draw"
+      ? "DRAW"
+      : "LOSS"}
+</span>
           </div>
           <p className="mt-2 line-clamp-1 text-sm text-slate-400">
             {match.aiCoach?.feedback.mainIssue || match.analysis?.focusArea || "Ingen AI-feedback"}
@@ -567,9 +579,21 @@ function MatchDetails({
                   <span className={`inline-flex rounded-lg border px-3 py-2 text-xs font-black ${resultClass(match.result)}`}>
                     {resultLabel(match.result)}
                   </span>
-                  <span className="text-3xl font-black">
-                    {match.score?.player ?? 0} - {match.score?.opponent ?? 0}
-                  </span>
+                  <span
+  className={
+    match.result === "win"
+      ? "text-3xl font-black text-green-400"
+      : match.result === "draw"
+        ? "text-3xl font-black text-yellow-400"
+        : "text-3xl font-black text-red-400"
+  }
+>
+  {match.result === "win"
+    ? "WIN"
+    : match.result === "draw"
+      ? "DRAW"
+      : "LOSS"}
+</span>
                 </div>
                 <p className="mt-3 text-slate-400">{formatDate(match.analyzedAt)}</p>
                 <p className="mt-1 break-all text-sm text-slate-600">{match.fileName}</p>
